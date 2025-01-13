@@ -1,6 +1,6 @@
 import { Elysia, t } from "elysia";
 
-const app = new Elysia().get("/", () => "Hello Elysia").listen(3000);
+const app = new Elysia().get("/", () => "Hello Elysia").listen(5000);
 
 app.post(
   "/slack/:challenge",
