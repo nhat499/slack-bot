@@ -1,27 +1,14 @@
 import { Elysia, t } from "elysia";
 
-const app = new Elysia().get("/", () => "Hello Elysia").listen(5000);
+const app = new Elysia();
 
-/*
-bot setting a message
-POST https://hooks.slack.com/services/T00000000/B00000000/XXXXXXXXXXXXXXXXXXXXXXXX
-Content-type: application/json
-{
-    "text": "Gotta get the bread and milk!"
-}
-
-*/
+app.get("/", () => "Hello Elysia");
 
 app.post(
   "/hc",
-  ({ body, params, headers, set }) => {
+  ({ headers, query, params, body }) => {
     console.log("hc");
-    console.log({
-      params,
-      headers,
-      body,
-    });
-    set.status = 200;
+    console.log({ headers, query, params, body });
     return "ok";
   },
   {}
@@ -45,6 +32,17 @@ app.post(
   }
 );
 
+app.listen(5000);
 console.log(
   `🦊 Elysia is running at ${app.server?.hostname}:${app.server?.port}`
 );
+
+/*
+bot setting a message
+POST https://hooks.slack.com/services/T00000000/B00000000/XXXXXXXXXXXXXXXXXXXXXXXX
+Content-type: application/json
+{
+    "text": "Gotta get the bread and milk!"
+}
+
+*/
