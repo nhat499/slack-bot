@@ -8,7 +8,7 @@ app.post(
     console.log(params.challenge);
     console.log(body);
     set.status = 200;
-    return { challenge: params.challenge };
+    return { challenge: body.challenge };
   },
   {
     params: t.Object({
