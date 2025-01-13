@@ -12,15 +12,20 @@ Content-type: application/json
 
 */
 
-app.post("/hc", ({ body, params, headers }) => {
-  console.log("hc");
-  console.log({
-    params,
-    headers,
-    body,
-  });
-  return "ok";
-});
+app.post(
+  "/hc",
+  ({ body, params, headers, set }) => {
+    console.log("hc");
+    console.log({
+      params,
+      headers,
+      body,
+    });
+    set.status = 200;
+    return "ok";
+  },
+  {}
+);
 
 app.post(
   "/slack/:challenge",
