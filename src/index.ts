@@ -4,14 +4,20 @@ const app = new Elysia().get("/", () => "Hello Elysia").listen(5000);
 
 app.post(
   "/slack/:challenge",
-  (req) => {
-    console.log(req.params.challenge);
-
-    return { challenge: req.params.challenge };
+  ({ params, set, body }) => {
+    console.log(params.challenge);
+    console.log(body);
+    set.status = 200;
+    return { challenge: params.challenge };
   },
   {
     params: t.Object({
       challenge: t.String(),
+    }),
+    body: t.Object({
+      token: t.String(),
+      challenge: t.String(),
+      type: t.String(),
     }),
   }
 );
