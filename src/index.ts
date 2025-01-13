@@ -13,6 +13,7 @@ Content-type: application/json
 */
 
 app.post("hc", ({ params, headers, body }) => {
+  console.log("hc");
   console.log({
     params,
     headers,
