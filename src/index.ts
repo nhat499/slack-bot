@@ -5,8 +5,6 @@ const app = new Elysia().get("/", () => "Hello Elysia").listen(5000);
 app.post(
   "/slack/:challenge",
   ({ params, set, body }) => {
-    console.log(params.challenge);
-    console.log(body);
     set.status = 200;
     return { challenge: body.challenge };
   },
