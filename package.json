@@ -6,7 +6,15 @@
     "dev": "bun run --watch src/index.ts"
   },
   "dependencies": {
-    "elysia": "latest"
+    "@elysiajs/swagger": "^1.2.0",
+    "@slack/bolt": "^4.2.0",
+    "@slack/types": "^2.14.0",
+    "axios": "^1.7.9",
+    "crypto": "^1.0.1",
+    "elysia": "^1.2.10",
+    "envalid": "^8.0.0",
+    "install": "^0.13.0",
+    "tecace-cloud-sdk": "bitbucket:tecacedev/tecace-cloud-sdk#1027b3f"
   },
   "devDependencies": {
     "bun-types": "latest"
