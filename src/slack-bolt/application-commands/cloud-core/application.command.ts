@@ -1,5 +1,5 @@
 import { App } from "@slack/bolt";
-import ticketSystemService from "../../../ticket.system.service";
+import { cloudCoreApi } from "../../../util/ticket.system";
 import { createAppModal } from "../../view-modal/create.app.modal";
 import { listModal } from "../../view-modal/list.app.modal";
 
@@ -76,12 +76,16 @@ export const applicationCommands = (bolt: App) => {
       const { search, page, rows, order, direction } = searchData(view);
 
       // Process or validate the inputs as needed
-      const response = await ticketSystemService.listApp({
-        search,
-        page,
-        rows,
-        order,
-        direction,
+      const { data: response } = await cloudCoreApi.GET("/api/v1/apps/", {
+        params: {
+          query: {
+            direction,
+            order,
+            page,
+            rows,
+            search: search ?? undefined,
+          },
+        },
       });
 
       if (!response || !response.data) {

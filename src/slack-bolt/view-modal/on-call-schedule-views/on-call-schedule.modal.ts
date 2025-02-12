@@ -2,7 +2,7 @@ import { AnyBlock, PlainTextOption, View } from "@slack/types";
 import {
   OnCallSchedule,
   OnCallScheduleType,
-} from "../../../on-call-schedule/get.on.call.schedule";
+} from "../../../util/on-call-schedule/on.call.schedule.helper";
 import { ViewOutput } from "@slack/bolt";
 
 export const updateOnCallScheduleModal = (
@@ -46,18 +46,56 @@ export const updateOnCallScheduleModal = (
     },
   };
 
-  const onCallPersonnelInput: AnyBlock = {
+  const onCallOverWriteInput: AnyBlock = {
     type: "input",
-    block_id: "on_call_personnel_block",
+    block_id: "on_call_overwrite_block",
     element: {
       type: "plain_text_input",
       multiline: true,
-      action_id: "on_call_personnel_input",
-      initial_value: JSON.stringify(onCallSchedule.onCallPersonals, null, 2),
+      action_id: "on_call_overwrite_input",
+      initial_value: JSON.stringify(onCallSchedule.overWrite, null, 2),
     },
     label: {
       type: "plain_text",
-      text: "On Call Personnel",
+      text: "Over Write",
+    },
+  };
+
+  const onCallWeeklyInput: AnyBlock = {
+    type: "input",
+    block_id: "on_call_weeklies_block",
+    element: {
+      type: "plain_text_input",
+      multiline: true,
+      action_id: "on_call_weeklies_input",
+      initial_value: JSON.stringify(
+        onCallSchedule[OnCallScheduleType.WEEKLIES],
+        null,
+        2
+      ),
+    },
+    label: {
+      type: "plain_text",
+      text: "Weekly",
+    },
+  };
+
+  const onCallDailiesInput: AnyBlock = {
+    type: "input",
+    block_id: "on_call_dailies_block",
+    element: {
+      type: "plain_text_input",
+      multiline: true,
+      action_id: "on_call_dailies_input",
+      initial_value: JSON.stringify(
+        onCallSchedule[OnCallScheduleType.DAILIES],
+        null,
+        2
+      ),
+    },
+    label: {
+      type: "plain_text",
+      text: "Dailies",
     },
   };
 
@@ -68,7 +106,12 @@ export const updateOnCallScheduleModal = (
       type: "plain_text",
       text: "Update On Call Schedule",
     },
-    blocks: [scheduleTypeInput, onCallPersonnelInput],
+    blocks: [
+      scheduleTypeInput,
+      onCallOverWriteInput,
+      onCallWeeklyInput,
+      onCallDailiesInput,
+    ],
     submit: {
       type: "plain_text",
       text: "Submit",
@@ -80,11 +123,21 @@ export const updateOnCallScheduleModal = (
 export const extractOnCallScheduleModal = (view: ViewOutput) => {
   const onCallScheduleType = view.state.values.on_call_schedule_block
     .on_call_schedule_input.selected_option?.value as OnCallScheduleType;
-
-  const onCallPersonnel: OnCallSchedule[string]["onCallPersonals"] = JSON.parse(
-    view.state.values.on_call_personnel_block.on_call_personnel_input
+  const weeklies: OnCallSchedule[string][OnCallScheduleType.WEEKLIES] =
+    JSON.parse(
+      view.state.values.on_call_weeklies_block.on_call_weeklies_input
+        ?.value as string
+    );
+  const overWrite: OnCallSchedule[string]["overWrite"] = JSON.parse(
+    view.state.values.on_call_overwrite_block.on_call_overwrite_input
       ?.value as string
   );
 
-  return { onCallScheduleType, onCallPersonnel };
+  const dailies: OnCallSchedule[string][OnCallScheduleType.DAILIES] =
+    JSON.parse(
+      view.state.values.on_call_dailies_block.on_call_dailies_input
+        ?.value as string
+    );
+
+  return { onCallScheduleType, overWrite, weeklies, dailies };
 };

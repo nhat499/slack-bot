@@ -1,8 +1,8 @@
 import { App } from "@slack/bolt";
-import { cloudCoreApi } from "../../ticket.system.service";
+import { cloudCoreApi } from "../../util/ticket.system";
 import { AppPermission } from "../../../app.config";
-import { onCallTimer } from "./system.monitor.alert";
 import { bolt } from "..";
+import ScheduleHandler from "../../util/on-call-schedule/schedule.handler";
 
 export const acknowledgeAlert = (bolt: App) => {
   bolt.action(
@@ -79,13 +79,13 @@ export const acknowledgeAlert = (bolt: App) => {
 };
 
 const clearOnCallTimer = (applicationId: string, ticketId: string) => {
-  while (onCallTimer[applicationId]?.[ticketId].length > 0) {
-    const timer = onCallTimer[applicationId][ticketId].pop();
+  while (ScheduleHandler.onCallTimer[applicationId]?.[ticketId].length > 0) {
+    const timer = ScheduleHandler.onCallTimer[applicationId][ticketId].pop();
     if (!timer) continue;
     clearTimeout(timer);
   }
-  if (onCallTimer[applicationId][ticketId].length === 0)
-    delete onCallTimer[applicationId][ticketId];
+  if (ScheduleHandler.onCallTimer[applicationId][ticketId].length === 0)
+    delete ScheduleHandler.onCallTimer[applicationId][ticketId];
 };
 
 const assignToTask = async ({

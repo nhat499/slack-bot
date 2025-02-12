@@ -2,7 +2,8 @@ import { cleanEnv, port, str } from "envalid";
 
 export const env = cleanEnv(process.env, {
   PORT: port({ default: 5000 }),
-  SLACK_PORT: port({ default: 5020 }), // socket endpoint for slack
+  // endpoint for slack
+  SLACK_PORT: port({ default: 5020 }),
   NODE_ENV: str({ default: "development" }),
 
   // CLOUD CORE
@@ -16,4 +17,9 @@ export const env = cleanEnv(process.env, {
   SLACK_BOT_TOKEN: str(),
   SLACK_SIGNING_SECRET: str(),
   SLACK_APP_TOKEN: str(),
+
+  // TWILIO
+  TWILIO_AUTH_TOKEN: str(),
+  TWILIO_ACCOUNT_SID: str(),
+  TWILIO_PHONE_NUMBER: str(),
 });

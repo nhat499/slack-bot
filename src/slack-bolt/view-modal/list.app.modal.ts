@@ -1,6 +1,6 @@
 import { ViewOutput } from "@slack/bolt";
 import { View } from "@slack/types";
-import { Direction } from "../../ticket.system.service";
+import { Direction } from "../../util/ticket.system";
 export const listModal = (callback_id: string) => {
   const view: View = {
     type: "modal",

@@ -4,45 +4,13 @@ export const testSlack = (bolt: App) => {
   // EVENT API TEST
 
   // Listens to incoming messages that contain "hello"
-  bolt.message("hello", async ({ message, say, client }) => {
-    // throw Error("test Error");
-    // say() sends a message to the channel where the event was triggered
-    // await say({
-    //   channel: "U088J40FRFE",
-    //   blocks: [
-    //     {
-    //       type: "section",
-    //       text: {
-    //         type: "mrkdwn",
-    //         text: `Hey there <@${message.user}>!`,
-    //       },
-    //       accessory: {
-    //         type: "button",
-    //         text: {
-    //           type: "plain_text",
-    //           text: "Click Me",
-    //         },
-    //         action_id: "button_click",
-    //       },
-    //     },
-    //   ],
-    //   text: `Hey there <@${message.user}>!`,
-    //   thread_ts: message.ts,
-    // });
-    await client.chat.scheduleMessage({
-      post_at: Math.floor(new Date().getTime() / 1000) + 10,
-
-      channel: "U088J40FRFE",
-      text: "hello",
-    });
-  });
+  bolt.message("hello", async ({ message, say, client }) => {});
 
   // listen for button click
-  bolt.action("button_click", async ({ body, ack, say }) => {
+  bolt.action("button_click", async ({ body, ack }) => {
     // Acknowledge the action
     console.log("buttonClicked");
     await ack();
-    await say(`<@${body.user.id}> clicked the button`);
   });
 
   // Sends a section block with datepicker when someone reacts with a 📅 emoji
@@ -122,7 +90,7 @@ export const testSlack = (bolt: App) => {
   // listener for selected option
   bolt.action(
     "select_crud",
-    async ({ ack, body, payload, action, client, inputs, say }) => {
+    async ({ ack, body, payload, action, client, inputs }) => {
       // Acknowledge the action
       console.log("crud_selected");
       console.log({
@@ -138,7 +106,7 @@ export const testSlack = (bolt: App) => {
       ) {
         return;
       }
-      await say(`<@${body.user.id}> selected ${action.selected_option.value}`);
+      // await say(`<@${body.user.id}> selected ${action.selected_option.value}`);
     }
   );
 

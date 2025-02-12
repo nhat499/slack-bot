@@ -1,227 +1,200 @@
 import { App } from "@slack/bolt";
-import { cloudCoreApi } from "../../ticket.system.service";
+import { cloudCoreApi } from "../../util/ticket.system";
 import { AppPermission } from "../../../app.config";
 import { env } from "../../../env.config";
-import { getCurrentOnCall } from "../../on-call-schedule/get.on.call.schedule";
-// import { onCall } from ".";
+import ScheduleHandler from "../../util/on-call-schedule/schedule.handler";
+import {
+  cloudCoreChecks,
+  postAlertMessage,
+} from "../../v1/alerts/alert.post.alert";
+import {
+  createTicket,
+  postTicketCreated,
+} from "../../v1/alerts/alert.post.create.ticket";
+import { sentAcknowledgementRequest } from "../../v1/alerts/alert.ping.on.call";
+import { twilioCall } from "../../util/twilio";
+import { createTask } from "../../v1/alerts/alert.post.create.task";
 
-interface OnCallTimer {
-  [appId: string]: {
-    [ticketId: string]: Timer[];
-  };
-}
-export const onCallTimer: OnCallTimer = {};
+// five minutes
+const alertTimer = 5 * 60 * 1000;
 
 export const systemMonitorAlert = (bolt: App) => {
   // listen for alerts and ping on call personnel
   bolt.message(
-    /\[ALERT\] (High|Low|Medium)\n.+\n.+\n.+\n(.+|\n)*/gm,
-    async ({ client, message, say }) => {
-      // message schema
-
-      // [ALERT] high
-      // appId
-      // ProjectId
-      // ticket name
-      // ticket description
-
+    /\[ALERT\] (HIGH|LOW|MEDIUM|CRITICAL)\n.+\n.+\n.+\n(.+|\n)*/gm,
+    async ({ message }) => {
       if (!("text" in message && message.text)) return;
       const { applicationId, description, priority, projectId, ticketName } =
         parseAlertText(message.text);
 
-      // check app exists
-      const { data: app } = await cloudCoreApi.GET("/api/v1/apps/{id}", {
-        params: {
-          path: {
-            id: applicationId,
+      const slackChannelId = message.channel;
+      const shouldPostAlert = {
+        shouldCreateTicket: {
+          shouldCreateTask: {
+            pingOnCall: {
+              sendAcknowledgement: true,
+              ping: true,
+              makePhoneCall: false,
+            },
+            postTaskCreated: true,
           },
+          postTicketCreated: true,
         },
+        alertName: ticketName,
+        alertDescription: description,
+      };
+
+      // check app/project exists
+      const {
+        error: CCError,
+        app,
+        project,
+      } = await cloudCoreChecks({
+        applicationId,
+        projectId,
       });
-
-      // app not found
-      if (!app) {
-        say({
-          text: `Application ${applicationId} not found.`,
-        });
-        return;
+      if (CCError || !app || !project) {
+        throw CCError;
       }
 
-      // app permission not found
-      if (!AppPermission[applicationId]) {
-        say({
-          text: `Application ${applicationId} permission not found.`,
-        });
-        return;
-      }
+      // post alert message
+      if (!shouldPostAlert) return;
 
-      // check project exits
-      const { data: project } = await cloudCoreApi.GET(
-        "/api/v1/projects/{project}/",
-        {
-          params: {
-            header: {
-              "x-app-id": applicationId,
-              // need to account for other apps
-              "x-app-secret": AppPermission[applicationId],
-            },
-            path: {
-              project: projectId,
-            },
-          },
-        }
-      );
-
-      // project not found
-      if (!project) {
-        say({
-          text: `Project ${projectId} not found.`,
-        });
-        return;
-      }
+      const { alertMessageTs, error: PAMError } = await postAlertMessage({
+        slackChannelId,
+        applicationId,
+        description: shouldPostAlert.alertDescription,
+        priority,
+        projectId,
+        ticketName: shouldPostAlert.alertName,
+      });
+      if (PAMError || !alertMessageTs) throw PAMError;
 
       // create ticket
-      const { data: ticket } = await cloudCoreApi.POST(
-        "/api/v1/projects/{project}/tickets/",
-        {
-          params: {
-            header: {
-              "x-app-id": applicationId,
-              // need to account for other apps
-              "x-app-secret": AppPermission[applicationId],
-            },
-            path: {
-              project: projectId,
-            },
-          },
-          body: {
-            authorId: env.SLACK_USER_ID,
-            name: ticketName,
-            description: description,
-            status: "TODO",
-          },
-        }
-      );
-
-      const ticketId = ticket?.id;
-      if (!ticket || !ticketId) {
-        say({
-          text: `Ticket ${ticketName} not created.`,
-        });
-        return;
-      }
+      if (!shouldPostAlert.shouldCreateTicket) return;
+      let {
+        error: CTError,
+        ticket,
+        ticketId,
+      } = await createTicket({
+        applicationId,
+        projectId,
+        ticketName: shouldPostAlert.alertName,
+        description: shouldPostAlert.alertDescription,
+      });
+      if (CTError || !ticket || !ticketId) throw CTError;
 
       // post saying ticket is created
-      say({
-        thread_ts: message.ts,
-        mrkdwn: true,
-        text: `*Ticket Created*\n
-          >*Application:* ${app.name}\n
-          >*ApplicationId:* ${applicationId}\n
-          >*Project:* ${project.name}\n
-          >*ProjectId:* ${projectId}\n
-          >*Ticket:* ${ticketName}\n
-          >*TicketId:* ${ticketId}\n
-          >*Description:* ${description}`
-          .split(/\n+\s+/)
-          .join("\n"),
+      // allow to keep track of comments
+      if (shouldPostAlert.shouldCreateTicket.postTicketCreated) {
+        await postTicketCreated({
+          alertMessageTs: alertMessageTs,
+          ticketCreationText: `*Ticket Created*`,
+          slackChannelId,
+          ticketMetaData: {
+            applicationId,
+            projectId,
+            ticketId,
+          },
+        });
+      }
+
+      // create task
+      if (!shouldPostAlert.shouldCreateTicket.shouldCreateTask) return;
+      const { task, taskId, error } = await createTask({
+        applicationId,
+        projectId,
+        ticketId,
+        taskName: "slack bot task",
+        taskDescription: "check ticket description for more info",
       });
 
-      if (priority === "High") {
-        // create task
-        const { data: task } = await cloudCoreApi.POST(
-          "/api/v1/projects/{project}/tasks/",
-          {
-            params: {
-              header: {
-                "x-app-id": applicationId,
-                // need to account for other apps
-                "x-app-secret": AppPermission[applicationId],
-              },
-              path: {
-                project: projectId,
-              },
-            },
-            body: {
-              ticketId: ticketId,
-              name: "slack bot task",
-              description: "check ticket description for more info",
-              status: "TODO",
-              //   assignedToId: onCallPersonnel.cloudCoreId,
-            },
-          }
-        );
-        const taskId = task?.id;
-        if (!task || !taskId) {
-          say({
-            text: `Task not created.`,
-          });
-          return;
-        }
+      if (error || !task || !taskId) {
+        throw error;
+      }
 
-        const text = `*Task Created*\n
-          >*Application:* ${app.name}\n
-          >*Project:* ${project.name}\n
-          >*Ticket:* ${ticketName}\n
-          >*Description:* ${description}`
-          .split(/\n+\s+/)
-          .join("\n");
-        const blocks = [
-          {
-            type: "section",
-            text: {
-              type: "mrkdwn",
-              text,
-            },
-            accessory: {
-              type: "button",
-              text: {
-                type: "plain_text",
-                text: "Acknowledged",
-              },
-              action_id: "Acknowledged_task",
-            },
+      // post saying task is created
+      if (shouldPostAlert.shouldCreateTicket.shouldCreateTask.postTaskCreated) {
+        await bolt.client.chat.postMessage({
+          channel: slackChannelId,
+          thread_ts: alertMessageTs,
+          text: `*Task Created*`,
+        });
+      }
+
+      const text = `*Task Created*\n
+        >*Application:* ${app.name}\n
+        >*Project:* ${project.name}\n
+        >*Ticket:* ${shouldPostAlert.alertName}\n
+        >*Description:* ${shouldPostAlert.alertDescription}`
+        .split(/\n+\s+/)
+        .join("\n");
+
+      const blocks = [
+        {
+          type: "section",
+          text: {
+            type: "mrkdwn",
+            text,
           },
-        ];
+          accessory: {
+            type: "button",
+            text: {
+              type: "plain_text",
+              text: "Acknowledged",
+            },
+            action_id: "Acknowledged_task",
+          },
+        },
+      ];
 
-        const fiveMin = 60 * 1 * 1000;
-        const onCall = await getCurrentOnCall(applicationId);
-        // ping on call people every ${fiveMin}
-        for (let i = 0; i < onCall.length; i++) {
-          const onCallPersonnel = onCall[i];
-          const timeout = setTimeout(async () => {
-            await client.chat.postMessage({
-              metadata: {
-                event_type: "TASK_ALERTED",
-                event_payload: {
-                  cloudCoreUserId: onCallPersonnel.cloudCoreUserId,
-                  slackUserId: onCall[i].slackUserId,
-                  channelId: message.channel,
-                  messageTs: message.ts,
-                  applicationId,
-                  projectId,
-                  ticketId: ticketId,
-                  taskId: taskId,
-                },
-              },
-              channel: onCall[i].slackUserId,
-              text,
+      const pingOnCall =
+        shouldPostAlert.shouldCreateTicket.shouldCreateTask.pingOnCall;
+      // ping and call people every ${fiveMin}
+      if (!pingOnCall) return;
+      const onCall = ScheduleHandler.getCurrentOnCall(applicationId);
+      if (onCall.length === 0) throw "There is no one on call right now";
+      for (let i = 0; i < onCall.length; i++) {
+        const onCallPersonnel = onCall[i];
+        const timeout = setTimeout(async () => {
+          // send acknowledgement request to slack
+          if (pingOnCall.sendAcknowledgement) {
+            await sentAcknowledgementRequest({
+              alertMessageTs,
+              applicationId,
               blocks,
+              onCallPersonnel,
+              projectId,
+              slackChannelId,
+              text,
+              ticketId,
+              taskId,
             });
-            say({
-              thread_ts: message.ts,
+          }
+
+          // show who is being pinged
+          if (pingOnCall.ping) {
+            await bolt.client.chat.postMessage({
+              channel: slackChannelId,
+              thread_ts: alertMessageTs,
               text: `Pinging <@${onCallPersonnel.slackUserId}> ${onCallPersonnel.firstName}`,
             });
-          }, i * fiveMin);
-          if (onCallTimer[applicationId] === undefined) {
-            onCallTimer[applicationId] = {};
           }
-          if (onCallTimer[applicationId][ticketId] === undefined) {
-            onCallTimer[applicationId][ticketId] = [];
-          }
-          onCallTimer[applicationId][ticketId].push(timeout);
 
-          console.log(JSON.stringify(onCallTimer, null, 2));
+          // make a phone call using twilio cost $0.0135 per min, per call
+          if (pingOnCall.makePhoneCall) {
+            await twilioCall(onCallPersonnel.phone);
+          }
+        }, i * alertTimer);
+        if (ScheduleHandler.onCallTimer[applicationId] === undefined) {
+          ScheduleHandler.onCallTimer[applicationId] = {};
         }
+        if (
+          ScheduleHandler.onCallTimer[applicationId][ticketId] === undefined
+        ) {
+          ScheduleHandler.onCallTimer[applicationId][ticketId] = [];
+        }
+        ScheduleHandler.onCallTimer[applicationId][ticketId].push(timeout);
       }
     }
   );

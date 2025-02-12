@@ -1,17 +1,23 @@
 import { App, subtype } from "@slack/bolt";
-import { cloudCoreApi } from "../../ticket.system.service";
+import { cloudCoreApi } from "../../util/ticket.system";
 import { AppPermission } from "../../../app.config";
 import { env } from "../../../env.config";
+import { TicketMetaData } from "../../v1/alerts/alert.post.create.ticket";
 
 export const repliesAlert = (bolt: App) => {
   bolt.message(async ({ message, say, client, body, event }) => {
     if (!("text" in message && message.text)) return;
-    if (
-      message.type === "message" &&
-      message.user &&
-      message.ts &&
-      message.text
-    ) {
+    const user = message.user;
+    if (message.type === "message" && user && message.ts && message.text) {
+      const postCommentStatus = (not: string) => {
+        client.chat.postEphemeral({
+          user: user,
+          channel: body.event.channel,
+          thread_ts: message.ts,
+          text: `Comment ${not} created on Cloud Core.`,
+        });
+      };
+
       // get replies threads
       const replies = await client.conversations.replies({
         channel: body.event.channel,
@@ -20,52 +26,55 @@ export const repliesAlert = (bolt: App) => {
       if (!replies.messages || !replies.messages[0].thread_ts) return;
       const parents = await client.conversations.replies({
         channel: body.event.channel,
+        include_all_metadata: true,
         ts: replies.messages[0].thread_ts,
       });
+
+      // console.log("parents.messages", parents.messages);
+
       if (
         parents.messages &&
         parents.messages[0].text?.startsWith("[ALERT]") &&
-        parents.messages[1].text?.startsWith("*Ticket Created*")
+        parents.messages[1].metadata?.event_type === "TICKET_CREATED"
       ) {
-        const ticketInfo = parents.messages[1].text.split("\n&gt;*");
-        const [
-          _title,
-          Application,
-          ApplicationId,
-          Project,
-          ProjectId,
-          Ticket,
-          TicketId,
-          Description,
-        ] = ticketInfo;
+        let ticketInfo = parents.messages[1].metadata;
+        let ticketData = ticketInfo.event_payload as TicketMetaData | undefined;
+        if (!ticketData) {
+          console.log("!ticketData");
+          postCommentStatus("not");
+          return;
+        }
+        const { applicationId, projectId, ticketId } = ticketData;
+
         // add comment to tickets
         const { data } = await cloudCoreApi.POST(
           "/api/v1/projects/{project}/comments/",
           {
             params: {
               header: {
-                "x-app-id": ApplicationId.split(":* ")[1],
-                "x-app-secret": AppPermission[ApplicationId.split(":* ")[1]],
+                "x-app-id": applicationId as string,
+                "x-app-secret": AppPermission[applicationId],
               },
               path: {
-                project: ProjectId.split(":* ")[1],
+                project: projectId,
               },
             },
             body: {
-              ticketId: TicketId.split(":* ")[1],
+              ticketId: ticketId,
               message: `${message.text}`,
               authorId: env.SLACK_USER_ID,
             },
           }
         );
+
         if (!data) {
-          client.chat.postEphemeral({
-            user: message.user,
-            channel: body.event.channel,
-            thread_ts: message.ts,
-            text: `Comment not created. Cloud Core Error`,
-          });
+          console.log("!data");
+          postCommentStatus("not");
         }
+        postCommentStatus("");
+      } else {
+        console.log("else");
+        postCommentStatus("not");
       }
     }
   });

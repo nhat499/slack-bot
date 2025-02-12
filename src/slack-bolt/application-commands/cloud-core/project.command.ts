@@ -1,5 +1,5 @@
 import { App } from "@slack/bolt";
-import { cloudCoreApi, headers } from "../../../ticket.system.service";
+import { cloudCoreApi, headers } from "../../../util/ticket.system";
 import { listProjectModal } from "../../view-modal/list.project.modal";
 
 // PROJECT LIST //

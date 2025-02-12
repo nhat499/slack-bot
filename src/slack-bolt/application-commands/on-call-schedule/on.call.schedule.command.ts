@@ -1,12 +1,9 @@
 import { App } from "@slack/bolt";
 import {
-  getOnCallSchedule,
-  updateOnCall,
-} from "../../../on-call-schedule/get.on.call.schedule";
-import {
   extractOnCallScheduleModal,
   updateOnCallScheduleModal,
 } from "../../view-modal/on-call-schedule-views/on-call-schedule.modal";
+import ScheduleHandler from "../../../util/on-call-schedule/schedule.handler";
 
 const updateOnCallScheduleTrigger = "update_on_call_schedule_trigger";
 
@@ -30,35 +27,22 @@ export const onCallScheduleCommands = (bolt: App) => {
       }
 
       // get on call schedule
-      const onCallSchedule = await getOnCallSchedule(appId);
-      if (!onCallSchedule) {
-        await client.chat.postEphemeral({
-          user: body.user_id,
-          channel: payload.channel_id,
-          text: "App does not have an on call schedule",
-        });
-        return;
-      }
+      const currDate = new Date();
+      const onCallPersonals = ScheduleHandler.getDaySchedule({
+        appId,
+        date: currDate.toLocaleDateString(),
+      });
+      const schedule = ScheduleHandler.getOnCallSchedule(appId);
 
       if (Action.toLocaleLowerCase() === "list") {
-        let message = `*Application:* ${onCallSchedule.application}\n
-        *Type:* ${onCallSchedule.type}\n
+        let message = `*Application:* ${schedule.application}\n
+        *Type:* ${schedule.type}\n
         *On Call Personals:*\n`
           .split(/\n+\s+/)
           .join("\n");
-
-        onCallSchedule.onCallPersonals.forEach((group, groupIndex: number) => {
-          message += `\n*Group ${groupIndex + 1}:*\n`;
-          group.forEach((person, personIndex) => {
-            message += `${personIndex + 1}. *First Name:* ${
-              person.firstName
-            }\n`;
-            message += `   *Last Name:* ${person.lastName}\n`;
-            message += `   *Cloud Core ID:* ${person.cloudCoreUserId}\n`;
-            message += `   *Slack User ID:* <@${person.slackUserId}>\n`;
-            message += `   *Phone:* ${person.phone}\n\n`;
-          });
-        });
+        message += `\`\`\`${ScheduleHandler.renderSchedule(
+          onCallPersonals
+        )}\`\`\``;
         client.chat.postMessage({
           channel: payload.channel_id,
           mrkdwn: true,
@@ -67,10 +51,8 @@ export const onCallScheduleCommands = (bolt: App) => {
       } else if (Action.toLocaleLowerCase() === "update") {
         await client.views.open({
           view: {
-            ...updateOnCallScheduleModal(
-              updateOnCallScheduleTrigger,
-              onCallSchedule
-            ).view,
+            ...updateOnCallScheduleModal(updateOnCallScheduleTrigger, schedule)
+              .view,
             private_metadata: appId,
           },
           trigger_id: body.trigger_id,
@@ -79,17 +61,44 @@ export const onCallScheduleCommands = (bolt: App) => {
     }
   );
 
+  // ============================================================ //
+  // ON CALL SCHEDULE UPDATE //
+  // ============================================================ //
   bolt.view(updateOnCallScheduleTrigger, async ({ ack, view }) => {
     try {
-      const { onCallPersonnel, onCallScheduleType } =
+      const { dailies, overWrite, weeklies, onCallScheduleType } =
         extractOnCallScheduleModal(view);
       await ack();
+      console.log({ dailies, overWrite, weeklies, onCallScheduleType });
 
-      await updateOnCall({
-        appId: view.private_metadata,
-        newOnCall: onCallPersonnel,
-        type: onCallScheduleType,
+      // UI need to be updated since data has been updated
+      ScheduleHandler.addEventToQueue({
+        event: "addOnCallSchedule",
+        data: [
+          {
+            appId: view.private_metadata,
+            data: {
+              DAILIES: { group: dailies },
+              overWrite: {
+                group: Object.values(overWrite)[0],
+                date: Object.keys(overWrite)[0],
+              },
+              WEEKLIES: {
+                day: 0,
+                group: weeklies[0],
+              },
+            },
+          },
+        ],
       });
+
+      // updateOnCallSchedule({
+      //   appId: view.private_metadata,
+      //   daySchedule: dailies,
+      //   overWriteSchedule: overWrite,
+      //   weeklySchedule: weeklies,
+      //   type: onCallScheduleType,
+      // });
     } catch (error) {
       if (!(error instanceof Error)) {
         console.error(error);

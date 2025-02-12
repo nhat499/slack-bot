@@ -2,6 +2,7 @@ import { ErrorHandler } from "elysia";
 
 export const handleError: ErrorHandler<any, any> = ({ error, code }) => {
   console.log(error);
+  console.log(code);
   switch (code) {
     case "VALIDATION":
       return { message: "Incorrect parameters were provided" };

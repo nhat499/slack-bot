@@ -14,7 +14,8 @@
     "elysia": "^1.2.10",
     "envalid": "^8.0.0",
     "install": "^0.13.0",
-    "tecace-cloud-sdk": "bitbucket:tecacedev/tecace-cloud-sdk#1027b3f"
+    "tecace-cloud-sdk": "bitbucket:tecacedev/tecace-cloud-sdk#1027b3f",
+    "twilio": "^5.4.3"
   },
   "devDependencies": {
     "bun-types": "latest"
