@@ -54,7 +54,7 @@ export const alertsPingOnCall = new Elysia().post(
       },
     ];
 
-    const onCall = await ScheduleHandler.getCurrentOnCall(applicationId);
+    const onCall = ScheduleHandler.getCurrentOnCall(applicationId);
 
     for (let i = 0; i < onCall.length; i++) {
       const onCallPersonnel = onCall[i];

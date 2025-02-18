@@ -2,10 +2,10 @@ import { App, ErrorCode } from "@slack/bolt";
 import { env } from "../../env.config";
 import { alertsEvents } from "./alerts";
 import { testSlack } from "./test-slack-functions";
-import { projectCommands } from "./application-commands/cloud-core/project.command";
-import { applicationCommands } from "./application-commands//cloud-core/application.command";
+import { projectCommands } from "./cloud-core-command.ts/project.command";
 import { ExtendedErrorHandlerArgs } from "@slack/bolt/dist/App";
-import { onCallScheduleCommands } from "./application-commands/on-call-schedule/on.call.schedule.command";
+import { onCallScheduleCommands } from "./schedule-commands/on.call.schedule.command";
+import { applicationCommands } from "./cloud-core-command.ts/application.command";
 
 export const bolt = new App({
   token: env.SLACK_BOT_TOKEN,

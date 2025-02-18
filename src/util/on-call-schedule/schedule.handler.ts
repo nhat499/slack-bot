@@ -7,7 +7,7 @@ import {
 } from "./on.call.schedule.helper";
 import fs from "fs/promises";
 import path from "path";
-import { start } from "repl";
+import { CustomError } from "../error.handlers";
 
 type ScheduleEvent<
   T extends keyof ScheduleHelperFunction = keyof ScheduleHelperFunction
@@ -69,9 +69,11 @@ class ScheduleHandler {
       case "addOnCallSchedule":
         this.addOnCallSchedule(event as ScheduleEvent<"addOnCallSchedule">);
         break;
-      case "addGroup":
-        this.addGroup(event as ScheduleEvent<"addGroup">);
+      case "updateGroup":
+        this.updateGroup(event as ScheduleEvent<"updateGroup">);
         break;
+      case "deleteGroup":
+        this.deleteGroup(event as ScheduleEvent<"deleteGroup">);
       case "saveOnCallSchedule":
         this.saveOnCallSchedule(event as ScheduleEvent<"saveOnCallSchedule">);
         break;
@@ -109,8 +111,20 @@ class ScheduleHandler {
     if (callBack) callBack();
   };
 
-  private static addGroup = ({ data, callBack }: ScheduleEvent<"addGroup">) => {
-    ScheduleHandler.addGroupHelper(...data);
+  private static updateGroup = ({
+    data,
+    callBack,
+  }: ScheduleEvent<"updateGroup">) => {
+    ScheduleHandler.updateGroupHelper(...data);
+    if (callBack) callBack();
+  };
+
+  private static deleteGroup = ({
+    data,
+    callBack,
+  }: ScheduleEvent<"deleteGroup">) => {
+    ScheduleHandler.deleteGroupHelper(...data);
+
     if (callBack) callBack();
   };
 
@@ -129,11 +143,12 @@ class ScheduleHandler {
     if (callBack) callBack();
   }
 
-  //=============================================================//
-  // public helper functions
-  //=============================================================//
   public static getOnCallSchedule = (appId: string) => {
     const data = this.onCallSchedule as OnCallSchedule;
+    if (data[appId] === undefined) {
+      const error = new CustomError(400);
+      throw error;
+    }
     return data[appId];
   };
 
@@ -146,13 +161,7 @@ class ScheduleHandler {
   public static getCurrentOnCall = (appId: string) => {
     const onCallData = this.getOnCallSchedule(appId);
 
-    if (!onCallData) {
-      throw new Error("No on call schedule found for the given appId");
-    }
-
     const currentDate = new Date();
-    //   currentDate.setDate(currentDate.getDate() + 1);
-    //   currentDate.setDate(currentDate.getHours() + 1);
     currentDate.toLocaleTimeString(undefined, { hour12: false });
     const dateString = currentDate.toLocaleDateString();
     const currHour = parseInt(
@@ -323,12 +332,27 @@ class ScheduleHandler {
     }
   };
 
-  private static addGroupHelper: ScheduleHelperFunction["addGroup"] = (
+  /**
+   *
+   * @param appId application id
+   * @param groupName on call group name
+   * @param data list of people within a group
+   * @returns Array of updated on call group
+   */
+  private static updateGroupHelper: ScheduleHelperFunction["updateGroup"] = (
     appId,
     groupName,
     data
   ) => {
     ScheduleHandler.getOnCallSchedule(appId).groups[groupName] = data;
+    return ScheduleHandler.getOnCallSchedule(appId).groups[groupName];
+  };
+
+  private static deleteGroupHelper: ScheduleHelperFunction["deleteGroup"] = (
+    appId,
+    groupName
+  ) => {
+    delete ScheduleHandler.getOnCallSchedule(appId).groups[groupName];
   };
 
   /**

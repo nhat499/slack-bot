@@ -1,9 +1,10 @@
 import { App } from "@slack/bolt";
 import {
-  extractOnCallScheduleModal,
+  extractUpdateOnCallScheduleModal,
   updateOnCallScheduleModal,
-} from "../../view-modal/on-call-schedule-views/on-call-schedule.modal";
-import ScheduleHandler from "../../../util/on-call-schedule/schedule.handler";
+} from "../view-modal/schedule-modal/update.on.call.schedule.modal";
+import ScheduleHandler from "../../util/on-call-schedule/schedule.handler";
+import { OnCallScheduleType } from "../../util/on-call-schedule/on.call.schedule.helper";
 
 const updateOnCallScheduleTrigger = "update_on_call_schedule_trigger";
 
@@ -65,51 +66,48 @@ export const onCallScheduleCommands = (bolt: App) => {
   // ON CALL SCHEDULE UPDATE //
   // ============================================================ //
   bolt.view(updateOnCallScheduleTrigger, async ({ ack, view }) => {
-    try {
-      const { dailies, overWrite, weeklies, onCallScheduleType } =
-        extractOnCallScheduleModal(view);
-      await ack();
-      console.log({ dailies, overWrite, weeklies, onCallScheduleType });
-
-      // UI need to be updated since data has been updated
-      ScheduleHandler.addEventToQueue({
-        event: "addOnCallSchedule",
-        data: [
-          {
-            appId: view.private_metadata,
-            data: {
-              DAILIES: { group: dailies },
-              overWrite: {
-                group: Object.values(overWrite)[0],
-                date: Object.keys(overWrite)[0],
-              },
-              WEEKLIES: {
-                day: 0,
-                group: weeklies[0],
-              },
-            },
-          },
-        ],
+    let { date, day, onCallGroup, onCallScheduleType } =
+      extractUpdateOnCallScheduleModal(view);
+    if (onCallScheduleType === OnCallScheduleType.WEEKLIES && !day) {
+      ack({
+        response_action: "errors",
+        errors: { ["day_input_block"]: "day is needed for WEEKLIES UPDATE" },
       });
-
-      // updateOnCallSchedule({
-      //   appId: view.private_metadata,
-      //   daySchedule: dailies,
-      //   overWriteSchedule: overWrite,
-      //   weeklySchedule: weeklies,
-      //   type: onCallScheduleType,
-      // });
-    } catch (error) {
-      if (!(error instanceof Error)) {
-        console.error(error);
-        return;
-      }
-      await ack({
+      return;
+    } else if (onCallScheduleType === "overWrite" && !date) {
+      ack({
         response_action: "errors",
         errors: {
-          ["on_call_personnel_block"]: error.message,
+          ["date_input_block"]: "date is needed for OVERWRITE UPDATE",
         },
       });
+      return;
     }
+    if (date) date = new Date(date).toLocaleDateString();
+    await ack();
+    ScheduleHandler.addEventToQueue({
+      event: "addOnCallSchedule",
+      data: [
+        {
+          appId: view.private_metadata,
+          data: {
+            [onCallScheduleType]: {
+              date,
+              day,
+              group: onCallGroup,
+            },
+            // DAILIES: { group: dailies },
+            // overWrite: {
+            //   group: Object.values(overWrite)[0],
+            //   date: Object.keys(overWrite)[0],
+            // },
+            // WEEKLIES: {
+            //   day: 0,
+            //   group: weeklies[0],
+            // },
+          },
+        },
+      ],
+    });
   });
 };

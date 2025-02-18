@@ -23,6 +23,7 @@ export const repliesAlert = (bolt: App) => {
         channel: body.event.channel,
         ts: message.ts,
       });
+
       if (!replies.messages || !replies.messages[0].thread_ts) return;
       const parents = await client.conversations.replies({
         channel: body.event.channel,
@@ -30,17 +31,13 @@ export const repliesAlert = (bolt: App) => {
         ts: replies.messages[0].thread_ts,
       });
 
-      // console.log("parents.messages", parents.messages);
-
       if (
         parents.messages &&
-        parents.messages[0].text?.startsWith("[ALERT]") &&
-        parents.messages[1].metadata?.event_type === "TICKET_CREATED"
+        parents.messages[0].metadata?.event_type === "TICKET_INFO"
       ) {
-        let ticketInfo = parents.messages[1].metadata;
+        let ticketInfo = parents.messages[0].metadata;
         let ticketData = ticketInfo.event_payload as TicketMetaData | undefined;
         if (!ticketData) {
-          console.log("!ticketData");
           postCommentStatus("not");
           return;
         }
@@ -73,7 +70,6 @@ export const repliesAlert = (bolt: App) => {
         }
         postCommentStatus("");
       } else {
-        console.log("else");
         postCommentStatus("not");
       }
     }

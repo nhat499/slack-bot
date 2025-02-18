@@ -1,6 +1,7 @@
 import Elysia, { t } from "elysia";
 import { OnCallGroupSchema } from "../../util/on-call-schedule/on.call.schedule.helper";
 import ScheduleHandler from "../../util/on-call-schedule/schedule.handler";
+import { SCHEDULE_TAG } from "./schedule.tag";
 
 export const scheduleAdd = new Elysia().post(
   "/add",
@@ -19,6 +20,7 @@ export const scheduleAdd = new Elysia().post(
     return ScheduleHandler.getOnCallSchedule(appId);
   },
   {
+    tags: [SCHEDULE_TAG],
     body: t.Object({
       appId: t.String(),
       data: t.Object({

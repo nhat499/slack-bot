@@ -1,5 +1,5 @@
-import twilio, { twiml } from "twilio";
 import { env } from "../../../env.config";
+import twilio from "twilio";
 
 const client = twilio(env.TWILIO_ACCOUNT_SID, env.TWILIO_AUTH_TOKEN);
 
@@ -17,6 +17,11 @@ export const twilioCall = async (phone: string) => {
     // statusCallback:
     // "https://r5g48530-5000.usw2.devtunnels.ms/twilio/callCompleted",
     // statusCallbackEvent: ["initiated", "ringing", "answered", "completed"],
+
+    statusCallback:
+      "https://r5g48530-5000.usw2.devtunnels.ms/v1/twilio/callCompleted",
+    statusCallbackEvent: ["completed"],
+
     statusCallbackMethod: "POST",
   });
 

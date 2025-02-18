@@ -1,5 +1,6 @@
 import Elysia, { t } from "elysia";
 import ScheduleHandler from "../../util/on-call-schedule/schedule.handler";
+import { SCHEDULE_TAG } from "./schedule.tag";
 
 export const scheduleGetDay = new Elysia().get(
   "/day",
@@ -8,6 +9,7 @@ export const scheduleGetDay = new Elysia().get(
     return ScheduleHandler.getDaySchedule({ appId, date });
   },
   {
+    tags: [SCHEDULE_TAG],
     query: t.Object({
       appId: t.String(),
       date: t.String({

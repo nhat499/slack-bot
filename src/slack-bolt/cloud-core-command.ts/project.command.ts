@@ -1,6 +1,6 @@
 import { App } from "@slack/bolt";
-import { cloudCoreApi, headers } from "../../../util/ticket.system";
-import { listProjectModal } from "../../view-modal/list.project.modal";
+import { cloudCoreApi, headers } from "../../util/ticket.system";
+import { listProjectModal } from "../view-modal/list.project.modal";
 
 // PROJECT LIST //
 const projectListParams = "project_list_params";

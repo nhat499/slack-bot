@@ -9,7 +9,17 @@ import ScheduleHandler from "./util/on-call-schedule/schedule.handler";
 // INITIALIZE VARIABLES
 //===========================================================//
 
-const router = new Elysia().onError(handleError);
+const router = new Elysia().onError(handleError).use(
+  swagger({
+    documentation: {
+      info: {
+        title: "Pager API",
+        version: "0.0.1",
+        description: "API paging application",
+      },
+    },
+  })
+);
 
 export const scheduleHandler = new ScheduleHandler();
 await scheduleHandler.init();

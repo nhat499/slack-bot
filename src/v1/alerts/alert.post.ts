@@ -59,20 +59,36 @@ export const alertsPost = new Elysia().post(
     });
     if (CTError || !ticket || !ticketId) return CTError;
 
-    // post saying ticket is created
-    // allow to keep track of comments
-    if (shouldPostAlert.shouldCreateTicket.postTicketCreated) {
-      await postTicketCreated({
-        alertMessageTs: alertMessageTs,
-        ticketCreationText: `*Ticket Created*`,
-        slackChannelId,
-        ticketMetaData: {
+    await bolt.client.chat.update({
+      channel: slackChannelId,
+      ts: alertMessageTs,
+      blocks: [],
+      attachments: [],
+      text: "[ALERT]",
+      metadata: {
+        event_type: "TICKET_INFO",
+        event_payload: {
           applicationId,
           projectId,
           ticketId,
         },
-      });
-    }
+      },
+    });
+
+    // post saying ticket is created
+    // allow to keep track of comments
+    // if (shouldPostAlert.shouldCreateTicket.postTicketCreated) {
+    //   await postTicketCreated({
+    //     alertMessageTs: alertMessageTs,
+    //     ticketCreationText: `*Ticket Created*`,
+    //     slackChannelId,
+    //     ticketMetaData: {
+    //       applicationId,
+    //       projectId,
+    //       ticketId,
+    //     },
+    //   });
+    // }
 
     // create task
     if (!shouldPostAlert.shouldCreateTicket.shouldCreateTask) return;

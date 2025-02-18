@@ -80,5 +80,11 @@ export interface ScheduleHelperFunction {
     };
   }) => void;
 
-  addGroup: (appId: string, groupName: string, data: onCallPersonnel[]) => void;
+  updateGroup: (
+    appId: string,
+    groupName: string,
+    data: onCallPersonnel[]
+  ) => void;
+
+  deleteGroup: (appId: string, groupName: string) => void;
 }

@@ -1,7 +1,9 @@
 import Elysia from "elysia";
-import { groupAdd } from "./group.add";
+import { groupUpdate } from "./group.update";
+import { groupDelete } from "./group.delete";
 
 export const scheduleGroups = new Elysia().group("/group", (app) => {
-  app.use(groupAdd);
+  app.use(groupUpdate);
+  app.use(groupDelete);
   return app;
 });
