@@ -83,7 +83,17 @@ export const onCallScheduleCommands = (bolt: App) => {
       });
       return;
     }
-    if (date) date = new Date(date).toLocaleDateString();
+
+    if (date) {
+      const dateParts = date.split("-");
+
+      const year = parseInt(dateParts[0], 10);
+      const month = parseInt(dateParts[1], 10) - 1; // Months are zero-based
+      const day = parseInt(dateParts[2], 10);
+
+      date = new Date(year, month, day).toLocaleDateString();
+    }
+
     await ack();
     ScheduleHandler.addEventToQueue({
       event: "addOnCallSchedule",

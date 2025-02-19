@@ -1,5 +1,5 @@
 import { App, subtype } from "@slack/bolt";
-import { cloudCoreApi } from "../../util/ticket.system";
+import { cloudCoreApi } from "../../util/cloud.core.system";
 import { AppPermission } from "../../../app.config";
 import { env } from "../../../env.config";
 import { TicketMetaData } from "../../v1/alerts/alert.post.create.ticket";

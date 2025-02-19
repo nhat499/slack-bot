@@ -1,5 +1,5 @@
 import Elysia, { t } from "elysia";
-import { cloudCoreApi } from "../../util/ticket.system";
+import { cloudCoreApi } from "../../util/cloud.core.system";
 import { AppPermission } from "../../../app.config";
 import { bolt } from "../../slack-bolt";
 

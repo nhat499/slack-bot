@@ -1,6 +1,6 @@
 import { App } from "@slack/bolt";
 import { listModal } from "../view-modal/list.app.modal";
-import { cloudCoreApi } from "../../util/ticket.system";
+import { cloudCoreApi } from "../../util/cloud.core.system";
 import { createAppModal } from "../view-modal/create.app.modal";
 
 const applicationListParams = "application_list_params";
@@ -20,7 +20,6 @@ export const applicationCommands = (bolt: App) => {
   bolt.command(
     "/application",
     async ({ ack, say, body, client, payload, command, context }) => {
-      console.log(body);
       await ack();
       const [action] = body.text.split(" ");
       if (!action) {
@@ -114,7 +113,7 @@ export const applicationCommands = (bolt: App) => {
             type: "section",
             text: {
               type: "mrkdwn",
-              text: `*${app.name}*\n${app.description}`,
+              text: `*${app.name}* ${app.id} \n${app.description}`,
             },
           })),
         ],

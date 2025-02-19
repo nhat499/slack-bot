@@ -3,7 +3,7 @@ import ScheduleHandler from "../../util/on-call-schedule/schedule.handler";
 import { alertTimer } from "../alerts/alert.ping.on.call";
 import { twilioCall } from "../../util/twilio";
 import { bolt } from "../../slack-bolt";
-import { cloudCoreApi } from "../../util/ticket.system";
+import { cloudCoreApi } from "../../util/cloud.core.system";
 import { AppPermission } from "../../../app.config";
 import { acknowledgeMessage } from "./alert.ping.on.call";
 import { ALERT_LABEL } from "./alert.tag";

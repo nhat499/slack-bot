@@ -1,6 +1,6 @@
 import Elysia, { t } from "elysia";
 import { bolt } from "../../slack-bolt";
-import { cloudCoreApi } from "../../util/ticket.system";
+import { cloudCoreApi } from "../../util/cloud.core.system";
 import { AppPermission } from "../../../app.config";
 import { alertText } from "./alert.post.message";
 import { ALERT_LABEL } from "./alert.tag";

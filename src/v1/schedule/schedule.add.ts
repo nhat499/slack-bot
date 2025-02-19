@@ -27,7 +27,6 @@ export const scheduleAdd = new Elysia().post(
         overWrite: t.Optional(
           t.Object({
             date: t.String({
-              format: "date-time",
               description: "month/day/year",
             }),
             group: t.Array(OnCallGroupSchema),

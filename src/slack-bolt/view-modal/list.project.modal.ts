@@ -1,6 +1,6 @@
 import { ViewOutput } from "@slack/bolt";
 import { View } from "@slack/types";
-import { Direction } from "../../util/ticket.system";
+import { Direction } from "../../util/cloud.core.system";
 
 export const listProjectModal = (callback_id: string) => {
   const view: View = {

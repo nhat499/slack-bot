@@ -43,4 +43,3 @@ package-lock.json
 bun.lockb
 **/*.bun
 on.call.schedule.json
-on.call.schedule2.json

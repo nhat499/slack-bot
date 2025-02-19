@@ -17,7 +17,7 @@ type ScheduleEvent<
   callBack?: () => void;
 };
 
-const filePath = path.join(__dirname, "../../../on.call.schedule2.json");
+const filePath = path.join(__dirname, "../../../on.call.schedule.json");
 
 class ScheduleHandler {
   static isProcessing: boolean = false;
@@ -107,6 +107,7 @@ class ScheduleHandler {
     data,
     callBack,
   }: ScheduleEvent<"addOnCallSchedule">) => {
+    console.log("..adding on call schedule");
     ScheduleHandler.addOnCallScheduleHelper(...data);
     if (callBack) callBack();
   };
@@ -325,7 +326,6 @@ class ScheduleHandler {
     )) {
       for (const [date, value] of Object.entries(Schedule.overWrite)) {
         if (new Date(date) < currDate) {
-          console.log("value", date);
           delete ScheduleHandler.onCallSchedule[appId].overWrite[date];
         }
       }
@@ -376,7 +376,7 @@ class ScheduleHandler {
         ScheduleHandler.onCallSchedule[appId].overWrite[date] =
           ScheduleHandler.mergeGroup(
             group,
-            ScheduleHandler.onCallSchedule[appId].overWrite[date]
+            ScheduleHandler.onCallSchedule[appId].overWrite[date] ?? []
           );
       }
       if (DAILIES) {
@@ -385,7 +385,8 @@ class ScheduleHandler {
         ScheduleHandler.onCallSchedule[appId][OnCallScheduleType.DAILIES] =
           ScheduleHandler.mergeGroup(
             group,
-            ScheduleHandler.onCallSchedule[appId][OnCallScheduleType.DAILIES]
+            ScheduleHandler.onCallSchedule[appId][OnCallScheduleType.DAILIES] ??
+              []
           );
       }
       if (WEEKLIES) {
@@ -397,7 +398,7 @@ class ScheduleHandler {
           group,
           ScheduleHandler.onCallSchedule[appId][OnCallScheduleType.WEEKLIES][
             day
-          ]
+          ] ?? []
         );
       }
     };
@@ -451,7 +452,6 @@ class ScheduleHandler {
         result.push(group);
       }
     }
-    console.log(result);
     return result;
   };
 
@@ -467,7 +467,6 @@ class ScheduleHandler {
   ) => {
     const overWrite = structuredClone(overWriteGroup);
     const repeat = structuredClone(repeatGroup);
-
     while (overWrite.length > 0) {
       const curr = overWrite.shift();
       if (!curr) continue;

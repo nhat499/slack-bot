@@ -1,5 +1,5 @@
 import { App } from "@slack/bolt";
-import { cloudCoreApi } from "../../util/ticket.system";
+import { cloudCoreApi } from "../../util/cloud.core.system";
 import { AppPermission } from "../../../app.config";
 import { bolt } from "..";
 import ScheduleHandler from "../../util/on-call-schedule/schedule.handler";
