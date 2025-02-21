@@ -5,8 +5,13 @@ import {
 } from "../view-modal/schedule-modal/update.on.call.schedule.modal";
 import ScheduleHandler from "../../util/on-call-schedule/schedule.handler";
 import { OnCallScheduleType } from "../../util/on-call-schedule/on.call.schedule.helper";
+import {
+  deleteOnCallScheduleModal,
+  extractDeleteOnCallScheduleModal,
+} from "../view-modal/schedule-modal/delete.oncall.schedule.modal";
 
 const updateOnCallScheduleTrigger = "update_on_call_schedule_trigger";
+const deleteOnCallScheduleTrigger = "delete_on_call_schedule_trigger";
 
 export const onCallScheduleCommands = (bolt: App) => {
   // ============================================================ //
@@ -15,8 +20,6 @@ export const onCallScheduleCommands = (bolt: App) => {
   bolt.command(
     "/schedule",
     async ({ command, ack, say, body, client, payload }) => {
-      await ack();
-
       const [appId, Action] = body.text.split(" ");
       if (!appId || !Action) {
         await client.chat.postEphemeral({
@@ -26,38 +29,63 @@ export const onCallScheduleCommands = (bolt: App) => {
         });
         return;
       }
-
-      // get on call schedule
-      const currDate = new Date();
-      const onCallPersonals = ScheduleHandler.getDaySchedule({
-        appId,
-        date: currDate.toLocaleDateString(),
-      });
-      const schedule = ScheduleHandler.getOnCallSchedule(appId);
-
-      if (Action.toLocaleLowerCase() === "list") {
-        let message = `*Application:* ${schedule.application}\n
-        *Type:* ${schedule.type}\n
-        *On Call Personals:*\n`
-          .split(/\n+\s+/)
-          .join("\n");
-        message += `\`\`\`${ScheduleHandler.renderSchedule(
-          onCallPersonals
-        )}\`\`\``;
-        client.chat.postMessage({
-          channel: payload.channel_id,
-          mrkdwn: true,
-          text: message.trim(),
+      let schedule, onCallPersonals;
+      try {
+        // get on call schedule
+        const UTCDateString = new Date().toISOString().split("T")[0]; // 2025-02-19T22:07:56.617Z
+        onCallPersonals = ScheduleHandler.getDaySchedule({
+          appId,
+          date: UTCDateString,
         });
-      } else if (Action.toLocaleLowerCase() === "update") {
-        await client.views.open({
-          view: {
-            ...updateOnCallScheduleModal(updateOnCallScheduleTrigger, schedule)
-              .view,
-            private_metadata: appId,
-          },
-          trigger_id: body.trigger_id,
-        });
+
+        schedule = ScheduleHandler.getOnCallSchedule(appId);
+        await ack();
+      } catch (err) {
+        await ack("cant find appid");
+        return;
+      }
+
+      switch (Action.toLowerCase()) {
+        case "list":
+          let message = `
+            *Application:* ${schedule.application}\n
+            *Type:* ${schedule.type}\n
+            *On Call Personals:*\n`
+            .split(/\n+\s+/)
+            .join("\n");
+
+          message += `\`\`\`${ScheduleHandler.renderSchedule(
+            onCallPersonals
+          )}\`\`\``;
+
+          client.chat.postMessage({
+            channel: payload.channel_id,
+            mrkdwn: true,
+            text: message.trim(),
+          });
+          break;
+        case "update":
+          await client.views.open({
+            view: {
+              ...updateOnCallScheduleModal(updateOnCallScheduleTrigger),
+              private_metadata: appId,
+            },
+            trigger_id: body.trigger_id,
+          });
+          break;
+        case "delete":
+          deleteOnCallScheduleModal(deleteOnCallScheduleTrigger);
+          await client.views.open({
+            view: {
+              ...deleteOnCallScheduleModal(deleteOnCallScheduleTrigger),
+              private_metadata: appId,
+            },
+            trigger_id: body.trigger_id,
+          });
+          break;
+        default:
+          await ack("Please provide a valid action [LIST|UPDATE|DELETE]");
+          return;
       }
     }
   );
@@ -85,13 +113,7 @@ export const onCallScheduleCommands = (bolt: App) => {
     }
 
     if (date) {
-      const dateParts = date.split("-");
-
-      const year = parseInt(dateParts[0], 10);
-      const month = parseInt(dateParts[1], 10) - 1; // Months are zero-based
-      const day = parseInt(dateParts[2], 10);
-
-      date = new Date(year, month, day).toLocaleDateString();
+      date = new Date(date).toISOString().split("T")[0];
     }
 
     await ack();
@@ -106,15 +128,53 @@ export const onCallScheduleCommands = (bolt: App) => {
               day,
               group: onCallGroup,
             },
-            // DAILIES: { group: dailies },
-            // overWrite: {
-            //   group: Object.values(overWrite)[0],
-            //   date: Object.keys(overWrite)[0],
-            // },
-            // WEEKLIES: {
-            //   day: 0,
-            //   group: weeklies[0],
-            // },
+          },
+        },
+      ],
+    });
+  });
+
+  // ============================================================ //
+  // ON CALL SCHEDULE DELETE //
+  // ============================================================ //
+  bolt.view(deleteOnCallScheduleTrigger, async ({ ack, view }) => {
+    console.log("onCallScheduleType test");
+    let { date, day, endTime, startTime, onCallScheduleType } =
+      extractDeleteOnCallScheduleModal(view);
+
+    if (onCallScheduleType === OnCallScheduleType.WEEKLIES && !day) {
+      ack({
+        response_action: "errors",
+        errors: { ["day_input_block"]: "day is needed for WEEKLIES UPDATE" },
+      });
+      return;
+    } else if (onCallScheduleType === "overWrite" && !date) {
+      ack({
+        response_action: "errors",
+        errors: {
+          ["date_input_block"]: "date is needed for OVERWRITE UPDATE",
+        },
+      });
+      return;
+    }
+
+    if (date) {
+      date = new Date(date).toISOString().split("T")[0];
+    }
+
+    await ack();
+    ScheduleHandler.addEventToQueue({
+      event: "deleteOnCallSchedule",
+      data: [
+        {
+          appId: view.private_metadata,
+          data: {
+            [onCallScheduleType]: {
+              date,
+              day,
+              startTime,
+              endTime,
+            },
           },
         },
       ],

@@ -1,157 +1,37 @@
 import { AnyBlock, PlainTextOption, View } from "@slack/types";
 import {
   OnCallGroup,
-  OnCallSchedule,
   OnCallScheduleType,
 } from "../../../util/on-call-schedule/on.call.schedule.helper";
 import { ViewOutput } from "@slack/bolt";
+import {
+  extractMultilineInput,
+  multilineInput,
+} from "../basic-input/multiline.input";
+import { dateInput, extractDateInput } from "../basic-input/date.input";
+import { dayInput, extractDayInput } from "../basic-input/day.input";
+import {
+  extractScheduleTypeInput,
+  scheduleTypeInput,
+} from "../basic-input/schedule.type.input";
 
-export const updateOnCallScheduleModal = (
-  callBack_id: string,
-  onCallSchedule: OnCallSchedule[string]
-) => {
-  const OnCallScheduleTypeOptions: PlainTextOption[] = Object.values({
-    ...OnCallScheduleType,
-    overWrite: "overWrite",
-  }).map((value) => {
-    return {
-      text: {
-        type: "plain_text",
-        text: value,
-      },
-      value: value,
-    };
-  });
+const scheduleTypeInputBlockId = "on_call_schedule_block";
+const scheduleTypeInputActionId = "on_call_schedule_input";
 
-  const initial_onCall_value = JSON.stringify(
+const multilineInputBlockId = "Schedule_input_block";
+const multilineInputActionId = "Schedule_input";
+
+const dateInputBlockId = "date_input_block";
+const dateInputActionId = "date_input";
+
+const dayInputBlockId = "day_input_block";
+const dayInputActionId = "day_input";
+export const updateOnCallScheduleModal = (callBack_id: string) => {
+  const initial_value = JSON.stringify(
     [{ group: "groupZ", startTime: "10", endTime: "12" }],
     null,
     2
   );
-
-  const scheduleTypeInput: AnyBlock = {
-    type: "input",
-    block_id: "on_call_schedule_block",
-    element: {
-      type: "static_select",
-      action_id: "on_call_schedule_input",
-      placeholder: {
-        type: "plain_text",
-        text: "Select an option",
-      },
-      initial_option: {
-        text: {
-          type: "plain_text",
-          text: onCallSchedule.type,
-        },
-        value: onCallSchedule.type,
-      },
-      options: OnCallScheduleTypeOptions,
-    },
-    label: {
-      type: "plain_text",
-      text: "On Call Schedule",
-    },
-  };
-
-  const dateInput: AnyBlock = {
-    type: "input",
-    block_id: "date_input_block",
-    optional: true,
-    element: {
-      type: "datepicker",
-      action_id: "date_input",
-    },
-    label: {
-      type: "plain_text",
-      text: "Date",
-    },
-  };
-
-  const dayOfWeek: AnyBlock = {
-    type: "input",
-    block_id: "day_input_block",
-    optional: true,
-    element: {
-      type: "number_input",
-      action_id: "day_input",
-      is_decimal_allowed: false,
-    },
-    label: {
-      type: "plain_text",
-      text: "Day of week (0-6)",
-    },
-  };
-
-  const scheduleInput: AnyBlock = {
-    type: "input",
-    block_id: "Schedule_input_block",
-    element: {
-      type: "plain_text_input",
-      multiline: true,
-      action_id: "Schedule_input",
-      initial_value: initial_onCall_value,
-    },
-    label: {
-      type: "plain_text",
-      text: "Group on Call",
-    },
-  };
-
-  // const onCallOverWriteInput: AnyBlock = {
-  //   type: "input",
-  //   optional: true,
-
-  //   block_id: "on_call_overwrite_block",
-  //   element: {
-  //     type: "plain_text_input",
-  //     multiline: true,
-  //     action_id: "on_call_overwrite_input",
-  //     initial_value: initial_onCall_value,
-  //   },
-  //   label: {
-  //     type: "plain_text",
-  //     text: "Over Write",
-  //   },
-  // };
-
-  // const onCallWeeklyInput: AnyBlock = {
-  //   type: "input",
-  //   block_id: "on_call_weeklies_block",
-  //   element: {
-  //     type: "plain_text_input",
-  //     multiline: true,
-  //     action_id: "on_call_weeklies_input",
-  //     initial_value: JSON.stringify(
-  //       onCallSchedule[OnCallScheduleType.WEEKLIES],
-  //       null,
-  //       2
-  //     ),
-  //   },
-  //   label: {
-  //     type: "plain_text",
-  //     text: "Weekly",
-  //   },
-  // };
-
-  // const onCallDailiesInput: AnyBlock = {
-  //   type: "input",
-  //   block_id: "on_call_dailies_block",
-  //   element: {
-  //     type: "plain_text_input",
-  //     multiline: true,
-  //     action_id: "on_call_dailies_input",
-  //     initial_value: JSON.stringify(
-  //       onCallSchedule[OnCallScheduleType.DAILIES],
-  //       null,
-  //       2
-  //     ),
-  //   },
-  //   label: {
-  //     type: "plain_text",
-  //     text: "Dailies",
-  //   },
-  // };
 
   const view: View = {
     type: "modal",
@@ -161,52 +41,58 @@ export const updateOnCallScheduleModal = (
       text: "Update On Call Schedule",
     },
     blocks: [
-      scheduleTypeInput,
-      dateInput,
-      dayOfWeek,
-      scheduleInput,
-      // onCallOverWriteInput,
-      // onCallWeeklyInput,
-      // onCallDailiesInput,
+      scheduleTypeInput(
+        "On Call Schedule",
+        scheduleTypeInputBlockId,
+        scheduleTypeInputActionId
+      ),
+      dateInput("Date", dateInputBlockId, dateInputActionId),
+      dayInput("Day of week (0-6)", dayInputBlockId, dayInputActionId),
+      multilineInput(
+        "Group on Call",
+        multilineInputBlockId,
+        multilineInputActionId,
+        initial_value
+      ),
     ],
     submit: {
       type: "plain_text",
       text: "Submit",
     },
+    close: {
+      type: "plain_text",
+      text: "Cancel",
+    },
   };
-  return { view };
+  return view;
 };
 
 export const extractUpdateOnCallScheduleModal = (view: ViewOutput) => {
-  const onCallScheduleType = view.state.values.on_call_schedule_block
-    .on_call_schedule_input.selected_option?.value as
-    | OnCallScheduleType
-    | "overWrite";
+  const onCallScheduleType = extractScheduleTypeInput({
+    view,
+    action_id: scheduleTypeInputActionId,
+    block_id: scheduleTypeInputBlockId,
+  });
 
-  const date = view.state.values.date_input_block.date_input.selected_date;
+  const date = extractDateInput({
+    view,
+    block_id: dateInputBlockId,
+    action_id: dateInputActionId,
+  });
 
-  const day = view.state.values.day_input_block.day_input.value;
+  const day = extractDayInput({
+    view,
+    action_id: dayInputActionId,
+    block_id: dayInputBlockId,
+  });
 
   const onCallGroup: OnCallGroup[] = JSON.parse(
-    view.state.values.Schedule_input_block.Schedule_input?.value as string
+    extractMultilineInput({
+      view,
+      block_id: multilineInputBlockId,
+      action_id: multilineInputActionId,
+    })
   );
 
-  // const weeklies: OnCallSchedule[string][OnCallScheduleType.WEEKLIES] =
-  //   JSON.parse(
-  //     view.state.values.on_call_weeklies_block.on_call_weeklies_input
-  //       ?.value as string
-  //   );
-  // const overWrite: OnCallSchedule[string]["overWrite"] = JSON.parse(
-  //   view.state.values.on_call_overwrite_block.on_call_overwrite_input
-  //     ?.value as string
-  // );
-
-  // const dailies: OnCallSchedule[string][OnCallScheduleType.DAILIES] =
-  //   JSON.parse(
-  //     view.state.values.on_call_dailies_block.on_call_dailies_input
-  //       ?.value as string
-  //   );
-
-  // return { onCallScheduleType, overWrite, weeklies, dailies };
   return { onCallScheduleType, onCallGroup, day, date };
 };

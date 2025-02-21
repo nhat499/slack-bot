@@ -20,8 +20,9 @@ type ScheduleEvent<
 const filePath = path.join(__dirname, "../../../on.call.schedule.json");
 
 class ScheduleHandler {
-  static isProcessing: boolean = false;
+  private static isProcessing: boolean = false;
   static onCallTimer: OnCallTimer = {};
+  static readonly alertTimer = 3 * 1000 * 60;
   private static eventsQueue: ScheduleEvent[] = [];
   private static onCallSchedule: OnCallSchedule = {};
   // every 12 hour
@@ -37,9 +38,9 @@ class ScheduleHandler {
     ScheduleHandler.onCallSchedule = JSON.parse(jsonString);
 
     // set interval to update to json file
-    setInterval(() => {
-      ScheduleHandler.saveSChedule();
-    }, ScheduleHandler.updateInterval);
+    // setInterval(() => {
+    //   ScheduleHandler.saveSChedule();
+    // }, ScheduleHandler.updateInterval);
 
     // set interval to clean up over write
     setInterval(() => {
@@ -54,7 +55,7 @@ class ScheduleHandler {
   // EVENT QUEUE
   //=============================================================//
 
-  private static processQueue() {
+  private static async processQueue() {
     if (
       ScheduleHandler.isProcessing ||
       ScheduleHandler.eventsQueue.length === 0
@@ -68,19 +69,24 @@ class ScheduleHandler {
     switch (event?.event) {
       case "addOnCallSchedule":
         this.addOnCallSchedule(event as ScheduleEvent<"addOnCallSchedule">);
+        await ScheduleHandler.saveSChedule();
         break;
       case "updateGroup":
         this.updateGroup(event as ScheduleEvent<"updateGroup">);
+        await ScheduleHandler.saveSChedule();
         break;
       case "deleteGroup":
         this.deleteGroup(event as ScheduleEvent<"deleteGroup">);
-      case "saveOnCallSchedule":
-        this.saveOnCallSchedule(event as ScheduleEvent<"saveOnCallSchedule">);
+        await ScheduleHandler.saveSChedule();
         break;
       case "deleteOnCallSchedule":
         this.deleteOnCallSchedule(
           event as ScheduleEvent<"deleteOnCallSchedule">
         );
+        await ScheduleHandler.saveSChedule();
+        break;
+      case "saveOnCallSchedule":
+        this.saveOnCallSchedule(event as ScheduleEvent<"saveOnCallSchedule">);
         break;
       default:
         console.warn(`Unhandled event type: ${(event?.data, event?.event)}`);
@@ -100,7 +106,7 @@ class ScheduleHandler {
   };
 
   //=============================================================//
-  // initiate queue event functions
+  // queue event functions
   //=============================================================//
 
   private static addOnCallSchedule = ({
@@ -163,18 +169,15 @@ class ScheduleHandler {
     const onCallData = this.getOnCallSchedule(appId);
 
     const currentDate = new Date();
-    currentDate.toLocaleTimeString(undefined, { hour12: false });
-    const dateString = currentDate.toLocaleDateString();
-    const currHour = parseInt(
-      currentDate.toLocaleTimeString(undefined, { hour12: false }).split(":")[0]
-    );
+    const dateString = currentDate.toISOString().split("T")[0];
+    const currHour = currentDate.getUTCHours();
 
     // check overwrite
     const overWriteGroups = onCallData.overWrite[dateString];
     if (overWriteGroups) {
       const onCallGroup = overWriteGroups.find((group) => {
         return (
-          parseInt(group.startTime) < currHour &&
+          parseInt(group.startTime) <= currHour &&
           parseInt(group.endTime) > currHour
         );
       });
@@ -188,7 +191,7 @@ class ScheduleHandler {
         const dailies = onCallData[OnCallScheduleType.DAILIES];
         const onCallGroup = dailies.find((group) => {
           return (
-            parseInt(group.startTime) < currHour &&
+            parseInt(group.startTime) <= currHour &&
             parseInt(group.endTime) > currHour
           );
         });
@@ -204,7 +207,7 @@ class ScheduleHandler {
         const day = onCallData[OnCallScheduleType.WEEKLIES][dayOfWeek];
         const onCallGroup = day.find((group) => {
           return (
-            parseInt(group.startTime) < currHour &&
+            parseInt(group.startTime) <= currHour &&
             parseInt(group.endTime) > currHour
           );
         });
@@ -244,7 +247,7 @@ class ScheduleHandler {
     if (onCallData.type === OnCallScheduleType.DAILIES) {
       repeatGroups = onCallData[onCallData.type];
     } else if (onCallData.type === OnCallScheduleType.WEEKLIES) {
-      repeatGroups = onCallData[onCallData.type][new Date(date).getDay()];
+      repeatGroups = onCallData[onCallData.type][new Date(date).getUTCDay()];
     }
     const result = ScheduleHandler.mergeGroup(
       overWriteGroups ?? [],
@@ -308,9 +311,9 @@ class ScheduleHandler {
   /**
    * Save in memory on call schedule to json file.
    */
-  private static saveSChedule = () => {
+  private static saveSChedule = async () => {
     console.log("writing to file");
-    fs.writeFile(
+    await fs.writeFile(
       filePath,
       JSON.stringify(ScheduleHandler.onCallSchedule, null, 2)
     );
@@ -376,7 +379,7 @@ class ScheduleHandler {
         ScheduleHandler.onCallSchedule[appId].overWrite[date] =
           ScheduleHandler.mergeGroup(
             group,
-            ScheduleHandler.onCallSchedule[appId].overWrite[date] ?? []
+            ScheduleHandler.onCallSchedule[appId].overWrite[date]
           );
       }
       if (DAILIES) {
@@ -385,8 +388,7 @@ class ScheduleHandler {
         ScheduleHandler.onCallSchedule[appId][OnCallScheduleType.DAILIES] =
           ScheduleHandler.mergeGroup(
             group,
-            ScheduleHandler.onCallSchedule[appId][OnCallScheduleType.DAILIES] ??
-              []
+            ScheduleHandler.onCallSchedule[appId][OnCallScheduleType.DAILIES]
           );
       }
       if (WEEKLIES) {
@@ -398,7 +400,7 @@ class ScheduleHandler {
           group,
           ScheduleHandler.onCallSchedule[appId][OnCallScheduleType.WEEKLIES][
             day
-          ] ?? []
+          ]
         );
       }
     };
@@ -407,12 +409,9 @@ class ScheduleHandler {
     ({ appId, data }) => {
       const schedule = ScheduleHandler.getOnCallSchedule(appId);
       if (!schedule) return;
-
       const { overWrite, DAILIES, WEEKLIES } = data;
-
       if (overWrite) {
         const { date, startTime, endTime } = overWrite;
-
         schedule.overWrite[date] = ScheduleHandler.deleteScheduleTime(
           schedule.overWrite[date],
           startTime,
@@ -422,10 +421,22 @@ class ScheduleHandler {
 
       if (DAILIES) {
         const { endTime, startTime } = DAILIES;
+        schedule[OnCallScheduleType.DAILIES] =
+          ScheduleHandler.deleteScheduleTime(
+            schedule[OnCallScheduleType.DAILIES],
+            startTime,
+            endTime
+          );
       }
 
       if (WEEKLIES) {
         const { day, endTime, startTime } = WEEKLIES;
+        schedule[OnCallScheduleType.WEEKLIES][day] =
+          ScheduleHandler.deleteScheduleTime(
+            schedule[OnCallScheduleType.WEEKLIES][day],
+            startTime,
+            endTime
+          );
       }
     };
 
@@ -465,8 +476,8 @@ class ScheduleHandler {
     overWriteGroup: OnCallGroup[],
     repeatGroup: OnCallGroup[]
   ) => {
-    const overWrite = structuredClone(overWriteGroup);
-    const repeat = structuredClone(repeatGroup);
+    const overWrite = overWriteGroup ? structuredClone(overWriteGroup) : [];
+    const repeat = repeatGroup ? structuredClone(repeatGroup) : [];
     while (overWrite.length > 0) {
       const curr = overWrite.shift();
       if (!curr) continue;

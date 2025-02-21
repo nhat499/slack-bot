@@ -14,7 +14,7 @@ export const scheduleGetDay = new Elysia().get(
       appId: t.String(),
       date: t.String({
         format: "date-time",
-        description: "month/day/year",
+        description: "yyyy-mm-dd",
       }),
     }),
   }

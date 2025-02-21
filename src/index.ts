@@ -28,7 +28,7 @@ await scheduleHandler.init();
 // ROUTES
 //===========================================================//
 router.post("/hc", async ({ body, headers }) => {
-  return "healthy";
+  return `healthy\n${new Date().toISOString()}`;
 });
 
 // testing

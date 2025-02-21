@@ -1,14 +1,17 @@
 import { ErrorHandler } from "elysia";
 
-export class CustomError extends Error {
+export class CustomError {
   code: number | string;
-  constructor(code: number | string) {
-    super();
+  message?: string;
+  constructor(code: number | string, message?: string) {
     this.code = code;
+    this.message = message;
   }
 }
 
-export const handleError: ErrorHandler<any, any> = ({ error, code, set }) => {
+export const handleError: ErrorHandler<any, any> = (data) => {
+  console.log("i am handler erorr data", data);
+  const { error, code, set } = data;
   console.log(error);
   console.log(code);
   switch (code) {
@@ -19,8 +22,10 @@ export const handleError: ErrorHandler<any, any> = ({ error, code, set }) => {
     case "NOT_FOUND":
       return { message: "The requested endpoint does not exist" };
     case 400:
+      set.status = 400;
       return { message: "Bad Request" };
     default:
+      set.status = 500;
       return { message: error.toString() };
   }
 };

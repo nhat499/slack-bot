@@ -1,19 +1,20 @@
 import Elysia, { t } from "elysia";
 import ScheduleHandler from "../../util/on-call-schedule/schedule.handler";
-import { alertTimer } from "../alerts/alert.ping.on.call";
+import { twilioCall } from "../../util/twilio";
 import { bolt } from "../../slack-bolt";
 import { cloudCoreApi } from "../../util/cloud.core.system";
 import { AppPermission } from "../../../app.config";
+import { acknowledgeMessage } from "./alert.ping.on.call";
 import { ALERT_LABEL } from "./alert.tag";
 
-export const alertPingOnCall = new Elysia().post(
-  "/ping",
+export const alertCallOnCall = new Elysia().post(
+  "/call",
   async ({ body }) => {
     let {
       applicationId,
       ticketId,
-      alertMessageTs,
       alertChannelId,
+      alertMessageTs,
       projectId,
       taskId,
     } = body;
@@ -48,27 +49,28 @@ export const alertPingOnCall = new Elysia().post(
         return "error creating task";
 
       taskId = data.id;
-    } else {
-      // check task id exists
-      const { data: taskData, error: taskError } = await cloudCoreApi.GET(
-        "/api/v1/projects/{project}/tasks/{task}",
-        {
-          params: {
-            header: {
-              "x-app-id": applicationId,
-              // need to account for other apps
-              "x-app-secret": AppPermission[applicationId],
-            },
-            path: {
-              project: projectId,
-              task: taskId,
-            },
-          },
-        }
-      );
-
-      if (!taskData || taskError || !taskData.id) return "incorrect task id";
     }
+
+    // check task id exists
+    const { data: taskData, error: taskError } = await cloudCoreApi.GET(
+      "/api/v1/projects/{project}/tasks/{task}",
+      {
+        params: {
+          header: {
+            "x-app-id": applicationId,
+            // need to account for other apps
+            "x-app-secret": AppPermission[applicationId],
+          },
+          path: {
+            project: projectId,
+            task: taskId,
+          },
+        },
+      }
+    );
+
+    if (!taskData || taskError || !taskData.description)
+      return "incorrect task id";
 
     const { blocks, text } = acknowledgeMessage({
       applicationId,
@@ -80,13 +82,10 @@ export const alertPingOnCall = new Elysia().post(
     for (let i = 0; i < onCall.length; i++) {
       const onCallPersonnel = onCall[i];
       const timeout = setTimeout(async () => {
-        // send ping
-        await bolt.client.chat.postMessage({
-          channel: alertChannelId,
-          thread_ts: alertMessageTs,
-          text: `Pinging <@${onCallPersonnel.slackUserId}> ${onCallPersonnel.firstName}`,
-        });
+        // make a phone call using twilio cost $0.0135 per min, per call
+        await twilioCall(onCallPersonnel.phone);
 
+        // make acknowledgment message
         await bolt.client.chat.postMessage({
           metadata: {
             event_type: "TASK_ALERTED",
@@ -105,7 +104,7 @@ export const alertPingOnCall = new Elysia().post(
           text,
           blocks,
         });
-      }, i * alertTimer);
+      }, i * ScheduleHandler.alertTimer);
       if (ScheduleHandler.onCallTimer[applicationId] === undefined) {
         ScheduleHandler.onCallTimer[applicationId] = {};
       }
@@ -127,43 +126,3 @@ export const alertPingOnCall = new Elysia().post(
     }),
   }
 );
-
-export const acknowledgeMessage = ({
-  applicationId,
-  projectId,
-  ticketId,
-  ticketDescription,
-}: {
-  applicationId: string;
-  projectId: string;
-  ticketId: string;
-  ticketDescription: string;
-}) => {
-  const text = `*Task Created*\n
-    >*Application:* ${applicationId}\n
-    >*Project:* ${projectId}\n
-    >*Ticket:* ${ticketId}\n
-    >*Description:* ${ticketDescription}`
-    .split(/\n+\s+/)
-    .join("\n");
-
-  const blocks = [
-    {
-      type: "section",
-      text: {
-        type: "mrkdwn",
-        text,
-      },
-      accessory: {
-        type: "button",
-        text: {
-          type: "plain_text",
-          text: "Acknowledged",
-        },
-        action_id: "Acknowledged_task",
-      },
-    },
-  ];
-
-  return { text, blocks };
-};

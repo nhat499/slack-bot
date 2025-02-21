@@ -1,4 +1,4 @@
-import { App, ErrorCode } from "@slack/bolt";
+import { App } from "@slack/bolt";
 import { env } from "../../env.config";
 import { alertsEvents } from "./alerts";
 import { testSlack } from "./test-slack-functions";
@@ -6,6 +6,7 @@ import { projectCommands } from "./cloud-core-command/project.command";
 import { ExtendedErrorHandlerArgs } from "@slack/bolt/dist/App";
 import { onCallScheduleCommands } from "./schedule-commands/on.call.schedule.command";
 import { applicationCommands } from "./cloud-core-command/application.command";
+import { onCallGroupsCommands } from "./schedule-commands/groups-commands/on.call.groups.command";
 
 export const bolt = new App({
   token: env.SLACK_BOT_TOKEN,
@@ -14,27 +15,27 @@ export const bolt = new App({
   extendedErrorHandler: true,
 });
 
-bolt.error(
-  async ({ error, logger, context, body }: ExtendedErrorHandlerArgs) => {
-    logger.error({
-      error: error.message || error,
-      eventType: body.type,
-      user: body.user,
+bolt.error(async (data: ExtendedErrorHandlerArgs) => {
+  const { error, logger, context, body } = data;
+  logger.error({
+    error: error.message || error,
+    eventType: body.type,
+    user: body.user,
+  });
+
+  if (
+    context &&
+    context.userId &&
+    body.type === "event_callback" &&
+    body.event.type === "message"
+  ) {
+    await bolt.client.chat.postEphemeral({
+      channel: body.event.channel,
+      user: context.userId,
+      text: `Something went wrong: ${error.message || error}`,
     });
-    if (
-      context &&
-      context.userId &&
-      body.type === "event_callback" &&
-      body.event.type === "message"
-    ) {
-      await bolt.client.chat.postEphemeral({
-        channel: body.event.channel,
-        user: context.userId,
-        text: `Something went wrong: ${error.message || error}`,
-      });
-    }
   }
-);
+});
 
 // ============================================================== //
 // Routes
@@ -51,6 +52,9 @@ alertsEvents(bolt);
 
 // on call schedules
 onCallScheduleCommands(bolt);
+
+// groups
+onCallGroupsCommands(bolt);
 
 // test slack
 testSlack(bolt);

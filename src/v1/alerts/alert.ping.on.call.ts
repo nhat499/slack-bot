@@ -1,93 +1,110 @@
 import Elysia, { t } from "elysia";
-import {
-  // getCurrentOnCall,
-  onCallPersonnel,
-  // onCallTimer,
-} from "../../util/on-call-schedule/on.call.schedule.helper";
-import { Block } from "@slack/types";
-import { bolt } from "../../slack-bolt";
-import { twilioCall } from "../../util/twilio";
 import ScheduleHandler from "../../util/on-call-schedule/schedule.handler";
+import { bolt } from "../../slack-bolt";
+import { cloudCoreApi } from "../../util/cloud.core.system";
+import { AppPermission } from "../../../app.config";
+import { ALERT_LABEL } from "./alert.tag";
 
-// five minutes
-export const alertTimer = 5 * 60 * 1000;
-
-export const alertsPingOnCall = new Elysia().post(
-  "/pingOnCall",
-  async ({ body, set }) => {
-    const {
+export const alertPingOnCall = new Elysia().post(
+  "/ping",
+  async ({ body }) => {
+    let {
       applicationId,
-      applicationName,
-      projectId,
-      projectName,
       ticketId,
-      ticketName,
-      ticketDescription,
+      alertMessageTs,
+      alertChannelId,
+      projectId,
       taskId,
-      ping,
-      makePhoneCall,
     } = body;
-
-    const text = `*Task Created*\n
-    >*Application:* ${applicationName}\n
-    >*Project:* ${projectName}\n
-    >*Ticket:* ${ticketName}\n
-    >*Description:* ${ticketDescription}`
-      .split(/\n+\s+/)
-      .join("\n");
-
-    const blocks = [
-      {
-        type: "section",
-        text: {
-          type: "mrkdwn",
-          text,
-        },
-        accessory: {
-          type: "button",
-          text: {
-            type: "plain_text",
-            text: "Acknowledged",
-          },
-          action_id: "Acknowledged_task",
-        },
-      },
-    ];
-
     const onCall = ScheduleHandler.getCurrentOnCall(applicationId);
+    if (onCall.length === 0) return "There is no one on call right now";
+
+    if (!taskId) {
+      // create task to assign to people
+      const { data, error } = await cloudCoreApi.POST(
+        "/api/v1/projects/{project}/tasks/",
+        {
+          params: {
+            header: {
+              "x-app-id": applicationId,
+              // need to account for other apps
+              "x-app-secret": AppPermission[applicationId],
+            },
+            path: {
+              project: projectId,
+            },
+          },
+          body: {
+            ticketId: ticketId,
+            name: `Alert task for ${ticketId}`,
+            description: "see Ticket description",
+            status: "TODO",
+          },
+        }
+      );
+
+      if (!data || !data.id || error || !data.description)
+        return "error creating task";
+
+      taskId = data.id;
+    } else {
+      // check task id exists
+      const { data: taskData, error: taskError } = await cloudCoreApi.GET(
+        "/api/v1/projects/{project}/tasks/{task}",
+        {
+          params: {
+            header: {
+              "x-app-id": applicationId,
+              // need to account for other apps
+              "x-app-secret": AppPermission[applicationId],
+            },
+            path: {
+              project: projectId,
+              task: taskId,
+            },
+          },
+        }
+      );
+
+      if (!taskData || taskError || !taskData.id) return "incorrect task id";
+    }
+
+    const { blocks, text } = acknowledgeMessage({
+      applicationId,
+      projectId,
+      ticketId,
+      ticketDescription: "check ticket description",
+    });
 
     for (let i = 0; i < onCall.length; i++) {
       const onCallPersonnel = onCall[i];
       const timeout = setTimeout(async () => {
-        // show who is being pinged
-        if (ping) {
-          await bolt.client.chat.postMessage({
-            channel: ping.slackChannelId,
-            thread_ts: ping.alertMessageTs,
-            text: `Pinging <@${onCallPersonnel.slackUserId}> ${onCallPersonnel.firstName}`,
-          });
+        // send ping
+        await bolt.client.chat.postMessage({
+          channel: alertChannelId,
+          thread_ts: alertMessageTs,
+          text: `Pinging <@${onCallPersonnel.slackUserId}> ${onCallPersonnel.firstName}`,
+        });
 
-          // send acknowledgement request to slack
-          if (ping.sendAcknowledgement) {
-            await sentAcknowledgementRequest({
-              alertMessageTs: ping.alertMessageTs,
+        await bolt.client.chat.postMessage({
+          metadata: {
+            event_type: "TASK_ALERTED",
+            event_payload: {
+              cloudCoreUserId: onCallPersonnel.cloudCoreUserId,
+              slackUserId: onCallPersonnel.slackUserId,
+              channelId: alertChannelId,
+              messageTs: alertMessageTs,
               applicationId,
-              blocks,
-              onCallPersonnel,
               projectId,
-              slackChannelId: ping.slackChannelId,
-              text,
-              ticketId,
-              taskId,
-            });
-          }
-        }
-
-        // make a phone call using twilio cost $0.0135 per min, per call
-        if (makePhoneCall) {
-          await twilioCall(onCallPersonnel.phone);
-        }
-      }, i * alertTimer);
+              ticketId: ticketId,
+              taskId: taskId,
+            },
+          },
+          channel: onCallPersonnel.slackUserId,
+          text,
+          blocks,
+        });
+      }, i * ScheduleHandler.alertTimer);
       if (ScheduleHandler.onCallTimer[applicationId] === undefined) {
         ScheduleHandler.onCallTimer[applicationId] = {};
       }
@@ -96,73 +113,56 @@ export const alertsPingOnCall = new Elysia().post(
       }
       ScheduleHandler.onCallTimer[applicationId][ticketId].push(timeout);
     }
-
-    set.status = 200;
-    return { message: "ok" };
   },
   {
+    tags: [ALERT_LABEL],
     body: t.Object({
+      alertMessageTs: t.String(),
+      alertChannelId: t.String(),
       applicationId: t.String(),
-      sendAcknowledgement: t.Boolean(),
-      applicationName: t.String(),
       projectId: t.String(),
-      projectName: t.String(),
       ticketId: t.String(),
-      ticketName: t.String(),
-      ticketDescription: t.String(),
-      taskId: t.String(),
-      ping: t.Optional(
-        t.Object({
-          slackChannelId: t.String(),
-          alertMessageTs: t.String(),
-          sendAcknowledgement: t.Boolean(),
-        })
-      ),
-      makePhoneCall: t.Boolean(),
+      taskId: t.Optional(t.String()),
     }),
   }
 );
 
-interface sentAcknowledgementRequestParams {
-  onCallPersonnel: onCallPersonnel;
-  slackChannelId: string;
-  alertMessageTs: string;
-  applicationId: string;
-  projectId: string;
-  ticketId: string;
-  taskId: string;
-  text: string;
-  blocks: Block[];
-}
-export const sentAcknowledgementRequest = async ({
-  onCallPersonnel,
-  slackChannelId,
-  alertMessageTs,
+export const acknowledgeMessage = ({
   applicationId,
   projectId,
   ticketId,
-  taskId,
-  text,
-  blocks,
-}: sentAcknowledgementRequestParams) => {
-  const result = await bolt.client.chat.postMessage({
-    metadata: {
-      event_type: "TASK_ALERTED",
-      event_payload: {
-        cloudCoreUserId: onCallPersonnel.cloudCoreUserId,
-        slackUserId: onCallPersonnel.slackUserId,
-        channelId: slackChannelId,
-        messageTs: alertMessageTs,
-        applicationId,
-        projectId,
-        ticketId: ticketId,
-        taskId: taskId,
+  ticketDescription,
+}: {
+  applicationId: string;
+  projectId: string;
+  ticketId: string;
+  ticketDescription: string;
+}) => {
+  const text = `*Task Created*\n
+    >*Application:* ${applicationId}\n
+    >*Project:* ${projectId}\n
+    >*Ticket:* ${ticketId}\n
+    >*Description:* ${ticketDescription}`
+    .split(/\n+\s+/)
+    .join("\n");
+
+  const blocks = [
+    {
+      type: "section",
+      text: {
+        type: "mrkdwn",
+        text,
+      },
+      accessory: {
+        type: "button",
+        text: {
+          type: "plain_text",
+          text: "Acknowledged",
+        },
+        action_id: "Acknowledged_task",
       },
     },
-    channel: onCallPersonnel.slackUserId,
-    text,
-    blocks,
-  });
+  ];
 
-  return result;
+  return { text, blocks };
 };

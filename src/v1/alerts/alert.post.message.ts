@@ -18,7 +18,7 @@ export const alertPostMessage = new Elysia().post(
       text: alertText({ applicationId, projectId }),
     });
     if (!result.ts) return "error posting alert message";
-
+    let ticketId: string | undefined;
     if (connectWithCloudCore) {
       // create tickets
       const { error, data } = await cloudCoreApi.POST(
@@ -44,7 +44,7 @@ export const alertPostMessage = new Elysia().post(
       if (error || !data || !data.id) {
         return "error creating tickets";
       }
-
+      ticketId = data.id;
       // update postMessage, sync with cloud core by adding meta data
       await bolt.client.chat.update({
         channel: alertChannelId,
@@ -66,7 +66,13 @@ export const alertPostMessage = new Elysia().post(
       });
     }
 
-    return result;
+    return {
+      channel: result.channel,
+      ts: result.ts,
+      applicationId,
+      projectId,
+      ticketId: ticketId,
+    };
   },
   {
     tags: [ALERT_LABEL],
